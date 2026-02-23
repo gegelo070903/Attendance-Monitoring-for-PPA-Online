@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import StatsCard from "@/components/StatsCard";
 import { Attendance, AttendanceStats } from "@/types";
@@ -15,7 +15,7 @@ export default function ReportsPage() {
     endDate: format(endOfMonth(new Date()), "yyyy-MM-dd"),
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -53,7 +53,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchData();
-  }, [dateRange]);
+  }, [dateRange, fetchData]);
 
   const handlePeriodChange = (newPeriod: "week" | "month" | "custom") => {
     setPeriod(newPeriod);

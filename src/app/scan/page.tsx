@@ -307,7 +307,7 @@ export default function ScanStationPage() {
         setIsProcessing(false);
       }
     },
-    [isProcessing, selectedShift]
+    [isProcessing, selectedShift, showSuccess, showErrorToast]
   );
 
   const handleError = (error: string) => {
