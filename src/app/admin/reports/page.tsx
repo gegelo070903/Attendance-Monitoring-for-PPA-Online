@@ -823,10 +823,13 @@ export default function AdminReportsPage() {
             <div className="relative">
               {/* Logo on far right */}
               <div className="absolute right-0 top-0">
-                <img
+                <Image
                   src="/images/download-removebg-preview.png"
                   alt="PPA Logo"
+                  width={80}
+                  height={80}
                   className="w-20 h-20 object-contain"
+                  priority
                 />
               </div>
               {/* Centered content */}

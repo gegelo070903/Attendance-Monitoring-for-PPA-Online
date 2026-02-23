@@ -69,10 +69,12 @@ export default function MyQRCodePage() {
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden bg-blue-600">
                 {(session?.user as any)?.profileImage ? (
-                  <img 
+                  <Image 
                     src={(session?.user as any).profileImage} 
                     alt="Profile" 
-                    className="w-full h-full object-cover"
+                    width={40} 
+                    height={40} 
+                    className="w-full h-full object-cover" 
                   />
                 ) : (
                   <span className="text-white text-lg font-bold">

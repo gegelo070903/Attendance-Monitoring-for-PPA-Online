@@ -71,10 +71,13 @@ export default function LoginPage() {
             <div className="text-center mb-5">
               <div className="flex justify-center mb-3">
                 <div className="w-16 h-16 bg-white rounded-full p-1.5 shadow-xl border-2 border-white/50">
-                  <img
+                  <Image
                     src="/images/ppa-logo-nobg.png"
                     alt="PPA Logo"
+                    width={64}
+                    height={64}
                     className="w-full h-full object-contain"
+                    priority
                   />
                 </div>
               </div>

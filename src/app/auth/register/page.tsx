@@ -86,6 +86,18 @@ export default function RegisterPage() {
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
+            <div className="flex justify-center mb-3">
+              <div className="w-16 h-16 bg-white rounded-full p-1.5 shadow-xl border-2 border-white/50">
+                <Image
+                  src="/images/ppa-logo-nobg.png"
+                  alt="PPA Logo"
+                  width={64}
+                  height={64}
+                  className="w-full h-full object-contain"
+                  priority
+                />
+              </div>
+            </div>
             <h1 className="text-3xl font-bold text-gray-900">Create Account</h1>
             <p className="text-gray-600 mt-2">Join the attendance system</p>
           </div>

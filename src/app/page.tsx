@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
@@ -21,9 +22,11 @@ export default async function Home() {
         <div className="text-center max-w-4xl mx-auto w-full">
           {/* Logo + Title Row */}
           <div className="flex items-center justify-center gap-3 mb-2">
-            <img
+            <Image
               src="/images/ppa-logo-nobg.png"
               alt="PPA Logo"
+              width={48}
+              height={48}
               className="w-12 h-12 object-contain"
             />
             <h1 className="text-3xl font-bold text-[#0038A8] drop-shadow-sm">

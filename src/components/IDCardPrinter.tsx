@@ -438,7 +438,7 @@ export default function IDCardPrinter({
               
               {/* Header */}
               <div className="flex items-center justify-center gap-2 pt-4 px-3 relative z-10">
-                <img src="/images/ppa-logo-nobg.png" alt="PPA" className="w-9 h-9 object-contain" />
+                <Image src="/images/ppa-logo-nobg.png" alt="PPA" width={36} height={36} className="w-9 h-9 object-contain" priority />
                 <p className="text-[8px] font-bold text-[#0038A8] leading-tight uppercase">Philippine<br/>Ports Authority</p>
               </div>
               
@@ -446,7 +446,7 @@ export default function IDCardPrinter({
               <div className="flex flex-col items-center pt-2 relative z-10">
                 <div className="w-[72px] h-[72px] rounded-full border-[3px] border-[#0038A8] overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 shadow-lg">
                   {userProfileImage ? (
-                    <img src={userProfileImage} alt="Profile" className="w-full h-full object-cover" />
+                    <Image src={userProfileImage} alt="Profile" width={72} height={72} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-500 font-bold text-2xl bg-gradient-to-br from-slate-200 to-slate-300">
                       {userName.charAt(0).toUpperCase()}
@@ -486,7 +486,7 @@ export default function IDCardPrinter({
               
               <div className="bg-white p-2 rounded-xl shadow-md border-2 border-[#0038A8] relative z-10">
                 {qrDataUrl ? (
-                  <img src={qrDataUrl} alt="QR Code" className="w-[100px] h-[100px]" />
+                  <Image src={qrDataUrl} alt="QR Code" width={100} height={100} className="w-[100px] h-[100px]" />
                 ) : (
                   <div className="w-[100px] h-[100px] bg-slate-100 animate-pulse rounded-lg"></div>
                 )}

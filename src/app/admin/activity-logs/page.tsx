@@ -409,9 +409,11 @@ export default function ActivityLogsPage() {
               </button>
             </div>
             <div className="p-4">
-              <img
+              <Image
                 src={selectedPhoto}
                 alt="Scan photo"
+                width={600}
+                height={400}
                 className="w-full h-auto rounded-lg"
               />
             </div>

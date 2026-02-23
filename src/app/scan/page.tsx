@@ -399,7 +399,7 @@ export default function ScanStationPage() {
             {/* Profile Image */}
             <div className="w-20 h-20 mx-auto rounded-full overflow-hidden border-4 border-[#0038A8] shadow-xl bg-gray-200 mb-3">
               {overlayData.user.profileImage ? (
-                <img src={overlayData.user.profileImage} alt={overlayData.user.name} className="w-full h-full object-cover" />
+                <Image src={overlayData.user.profileImage} alt={overlayData.user.name} width={80} height={80} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-100">
                   <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
@@ -449,7 +449,7 @@ export default function ScanStationPage() {
 
           {/* Logo & Title */}
           <div className="flex items-center gap-2">
-            <img src="/images/ppa-logo-nobg.png" alt="PPA Logo" className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
+            <Image src="/images/ppa-logo-nobg.png" alt="PPA Logo" width={40} height={40} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" priority />
             <div className="text-center sm:text-left">
               <h1 className="text-base sm:text-lg font-bold text-[#0038A8] leading-tight">Philippine Ports Authority</h1>
               <p className="text-[#CE1126] text-xs font-medium">Attendance Monitoring System</p>
@@ -588,7 +588,7 @@ export default function ScanStationPage() {
                       <div className="flex items-center gap-2.5">
                         <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-white shadow bg-gray-200 flex-shrink-0">
                           {scan.profileImage ? (
-                            <img src={scan.profileImage} alt={scan.name} className="w-full h-full object-cover" />
+                            <Image src={scan.profileImage} alt={scan.name} width={40} height={40} className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center bg-gray-100">
                               <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
