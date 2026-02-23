@@ -146,13 +146,6 @@ export default function ProfilePage() {
   const handleSaveProfile = async () => {
     setSavingProfile(true);
     setProfileMessage(null);
-                        <Image
-                          src={profileImage}
-                          alt="Profile"
-                          width={128}
-                          height={128}
-                          className="w-full h-full object-cover"
-                        />
         body: JSON.stringify({
           department: profileData.department,
           position: profileData.position,
