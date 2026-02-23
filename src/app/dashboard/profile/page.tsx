@@ -144,13 +144,17 @@ export default function ProfilePage() {
   };
 
   const handleSaveProfile = async () => {
+
     setSavingProfile(true);
     setProfileMessage(null);
-        body: JSON.stringify({
-          department: profileData.department,
-          position: profileData.position,
-        }),
-      });
+    const res = await fetch("/api/profile/update", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        department: profileData.department,
+        position: profileData.position,
+      }),
+    });
 
       const data = await res.json();
 
