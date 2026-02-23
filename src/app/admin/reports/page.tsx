@@ -1,0 +1,1070 @@
+"use client";
+
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { format, startOfMonth, endOfMonth, getDaysInMonth, eachDayOfInterval, isWeekend } from "date-fns";
+
+interface Employee {
+  id: string;
+  name: string;
+  email: string;
+  department: string | null;
+  position: string | null;
+}
+
+interface AttendanceRecord {
+  id: string;
+  userId: string;
+  date: string;
+  amIn: string | null;
+  amOut: string | null;
+  pmIn: string | null;
+  pmOut: string | null;
+  status: string;
+  workHours: number | null;
+  user: {
+    name: string;
+    email: string;
+    department: string | null;
+    position: string | null;
+  };
+}
+
+interface MonthlyStats {
+  totalWorkDays: number;
+  presentDays: number;
+  absentDays: number;
+  lateDays: number;
+  halfDays: number;
+  totalWorkHours: number;
+  attendanceRate: number;
+}
+
+export default function AdminReportsPage() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"));
+  const [reportType, setReportType] = useState<"organization" | "individual">("organization");
+  const [selectedEmployee, setSelectedEmployee] = useState<string>("");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
+  const [individualDepartment, setIndividualDepartment] = useState<string>("all");
+  const [generating, setGenerating] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  // Get unique departments from employees
+  const departments = useMemo(() => {
+    const deptSet = new Set<string>();
+    employees.forEach(emp => {
+      if (emp.department) {
+        deptSet.add(emp.department);
+      }
+    });
+    return Array.from(deptSet).sort();
+  }, [employees]);
+
+  // Filter employees by selected department
+  const filteredEmployees = useMemo(() => {
+    if (selectedDepartment === "all") {
+      // Sort by department name for grouping
+      return [...employees].sort((a, b) => {
+        const deptA = a.department || "Unassigned";
+        const deptB = b.department || "Unassigned";
+        return deptA.localeCompare(deptB);
+      });
+    }
+    return employees.filter(emp => emp.department === selectedDepartment);
+  }, [employees, selectedDepartment]);
+
+  // Filter employees by department for individual report
+  const individualFilteredEmployees = useMemo(() => {
+    if (individualDepartment === "all") {
+      return [...employees].sort((a, b) => {
+        const deptA = a.department || "Unassigned";
+        const deptB = b.department || "Unassigned";
+        if (deptA !== deptB) return deptA.localeCompare(deptB);
+        return a.name.localeCompare(b.name);
+      });
+    }
+    return employees.filter(emp => emp.department === individualDepartment).sort((a, b) => a.name.localeCompare(b.name));
+  }, [employees, individualDepartment]);
+
+  // Group employees by department
+  const employeesByDepartment = useMemo(() => {
+    const grouped: { [key: string]: Employee[] } = {};
+    filteredEmployees.forEach(emp => {
+      const dept = emp.department || "Unassigned";
+      if (!grouped[dept]) {
+        grouped[dept] = [];
+      }
+      grouped[dept].push(emp);
+    });
+    return grouped;
+  }, [filteredEmployees]);
+
+  // Fetch employees
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const res = await fetch("/api/employees");
+        const data = await res.json();
+        // Include all users (employees and admins)
+        setEmployees(data);
+        if (data.length > 0) {
+          setSelectedEmployee(data[0].id);
+        }
+      } catch (error) {
+        console.error("Failed to fetch employees:", error);
+      }
+    };
+    fetchEmployees();
+  }, []);
+
+  // Fetch attendance data
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      setLoading(true);
+      try {
+        const [year, month] = selectedMonth.split("-");
+        const startDate = startOfMonth(new Date(parseInt(year), parseInt(month) - 1));
+        const endDate = endOfMonth(startDate);
+
+        const params = new URLSearchParams({
+          startDate: format(startDate, "yyyy-MM-dd"),
+          endDate: format(endDate, "yyyy-MM-dd"),
+          all: "true", // Get all employees' attendance
+        });
+
+        const res = await fetch(`/api/attendance?${params}`);
+        const data = await res.json();
+        setAttendanceData(data);
+      } catch (error) {
+        console.error("Failed to fetch attendance:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAttendance();
+  }, [selectedMonth]);
+
+  // Calculate stats for an employee
+  const calculateEmployeeStats = (employeeId: string): MonthlyStats => {
+    const [year, month] = selectedMonth.split("-");
+    const startDate = startOfMonth(new Date(parseInt(year), parseInt(month) - 1));
+    const endDate = endOfMonth(startDate);
+    
+    // Calculate working days (exclude weekends)
+    const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+    const workDays = allDays.filter(day => !isWeekend(day));
+    const totalWorkDays = workDays.length;
+
+    const employeeAttendance = attendanceData.filter(a => a.userId === employeeId);
+    
+    const presentDays = employeeAttendance.filter(a => a.status === "PRESENT").length;
+    const lateDays = employeeAttendance.filter(a => a.status === "LATE").length;
+    const halfDays = employeeAttendance.filter(a => a.status === "HALF_DAY").length;
+    const absentDays = totalWorkDays - presentDays - lateDays - halfDays;
+    const totalWorkHours = employeeAttendance.reduce((sum, a) => sum + (a.workHours || 0), 0);
+    
+    const attendanceRate = totalWorkDays > 0 
+      ? Math.round(((presentDays + lateDays + halfDays) / totalWorkDays) * 100) 
+      : 0;
+
+    return {
+      totalWorkDays,
+      presentDays,
+      absentDays: Math.max(0, absentDays),
+      lateDays,
+      halfDays,
+      totalWorkHours: Math.round(totalWorkHours * 100) / 100,
+      attendanceRate,
+    };
+  };
+
+  // Calculate organization stats (based on filtered employees)
+  const calculateOrgStats = (): MonthlyStats => {
+    const allStats = filteredEmployees.map(emp => calculateEmployeeStats(emp.id));
+    
+    if (allStats.length === 0) {
+      return {
+        totalWorkDays: 0,
+        presentDays: 0,
+        absentDays: 0,
+        lateDays: 0,
+        halfDays: 0,
+        totalWorkHours: 0,
+        attendanceRate: 0,
+      };
+    }
+
+    return {
+      totalWorkDays: allStats[0]?.totalWorkDays || 0,
+      presentDays: allStats.reduce((sum, s) => sum + s.presentDays, 0),
+      absentDays: allStats.reduce((sum, s) => sum + s.absentDays, 0),
+      lateDays: allStats.reduce((sum, s) => sum + s.lateDays, 0),
+      halfDays: allStats.reduce((sum, s) => sum + s.halfDays, 0),
+      totalWorkHours: Math.round(allStats.reduce((sum, s) => sum + s.totalWorkHours, 0) * 100) / 100,
+      attendanceRate: Math.round(allStats.reduce((sum, s) => sum + s.attendanceRate, 0) / allStats.length),
+    };
+  };
+
+  // Calculate department stats
+  const calculateDepartmentStats = (deptEmployees: Employee[]): MonthlyStats => {
+    const allStats = deptEmployees.map(emp => calculateEmployeeStats(emp.id));
+    
+    if (allStats.length === 0) {
+      return {
+        totalWorkDays: 0,
+        presentDays: 0,
+        absentDays: 0,
+        lateDays: 0,
+        halfDays: 0,
+        totalWorkHours: 0,
+        attendanceRate: 0,
+      };
+    }
+
+    return {
+      totalWorkDays: allStats[0]?.totalWorkDays || 0,
+      presentDays: allStats.reduce((sum, s) => sum + s.presentDays, 0),
+      absentDays: allStats.reduce((sum, s) => sum + s.absentDays, 0),
+      lateDays: allStats.reduce((sum, s) => sum + s.lateDays, 0),
+      halfDays: allStats.reduce((sum, s) => sum + s.halfDays, 0),
+      totalWorkHours: Math.round(allStats.reduce((sum, s) => sum + s.totalWorkHours, 0) * 100) / 100,
+      attendanceRate: Math.round(allStats.reduce((sum, s) => sum + s.attendanceRate, 0) / allStats.length),
+    };
+  };
+
+  // Get employee attendance for the month
+  const getEmployeeMonthlyAttendance = (employeeId: string) => {
+    const [year, month] = selectedMonth.split("-");
+    const startDate = startOfMonth(new Date(parseInt(year), parseInt(month) - 1));
+    const endDate = endOfMonth(startDate);
+    const allDays = eachDayOfInterval({ start: startDate, end: endDate });
+
+    return allDays.map(day => {
+      const dateStr = format(day, "yyyy-MM-dd");
+      const attendance = attendanceData.find(
+        a => a.userId === employeeId && a.date.startsWith(dateStr)
+      );
+      
+      return {
+        date: day,
+        dateStr,
+        isWeekend: isWeekend(day),
+        attendance,
+      };
+    });
+  };
+
+  // Format time for display
+  const formatTime = (dateStr: string | null) => {
+    if (!dateStr) return "-";
+    try {
+      return format(new Date(dateStr), "hh:mm a");
+    } catch {
+      return "-";
+    }
+  };
+
+  // Print function
+  const handlePrint = () => {
+    setGenerating(true);
+    setTimeout(() => {
+      window.print();
+      setGenerating(false);
+    }, 500);
+  };
+
+  const monthName = format(new Date(selectedMonth + "-01"), "MMMM yyyy");
+  const currentDate = format(new Date(), "MMMM dd, yyyy");
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ppa-navy"></div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Print Styles */}
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 landscape;
+            margin: 8mm 10mm;
+          }
+          
+          /* Remove dark class from html when printing */
+          html.dark {
+            color-scheme: light !important;
+          }
+          
+          /* Hide everything except print area */
+          body * {
+            visibility: hidden;
+          }
+          
+          #print-area, #print-area * {
+            visibility: visible;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          #print-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: white !important;
+            color: black !important;
+            padding: 0 !important;
+          }
+          
+          /* Force white background for main container */
+          #print-area,
+          #print-area > div,
+          #print-area .rounded-md,
+          #print-area .rounded-lg,
+          #print-area .rounded-xl {
+            background-color: white !important;
+          }
+          
+          /* Override dark mode table rows */
+          #print-area tr[class*="dark:bg-gray"] {
+            background-color: white !important;
+          }
+          #print-area tr:nth-child(even) {
+            background-color: #f9fafb !important;
+          }
+          
+          /* Force black text for all elements */
+          #print-area,
+          #print-area div,
+          #print-area p,
+          #print-area span,
+          #print-area td,
+          #print-area h1,
+          #print-area h2,
+          #print-area h3,
+          #print-area .dark\\:text-white,
+          #print-area .dark\\:text-gray-100,
+          #print-area .dark\\:text-gray-200,
+          #print-area .dark\\:text-gray-300,
+          #print-area .dark\\:text-gray-400,
+          #print-area .dark\\:text-ppa-light {
+            color: black !important;
+          }
+          
+          /* Keep table header navy */
+          #print-area thead tr,
+          #print-area thead tr.bg-ppa-navy {
+            background-color: #0d3a5c !important;
+          }
+          
+          #print-area thead th {
+            background-color: #0d3a5c !important;
+            color: white !important;
+          }
+          
+          /* Table rows - force white/light gray */
+          #print-area tbody tr {
+            background-color: white !important;
+            color: black !important;
+          }
+          
+          #print-area tbody tr:nth-child(even) {
+            background-color: #f9fafb !important;
+          }
+          
+          /* Stats cards with colored left border - use attribute selector for dark mode */
+          #print-area div[class*="bg-green-50"],
+          #print-area div[class*="bg-green-900"] {
+            background-color: #dcfce7 !important;
+            border-left: 4px solid #22c55e !important;
+          }
+          #print-area div[class*="bg-red-50"],
+          #print-area div[class*="bg-red-900"] {
+            background-color: #fee2e2 !important;
+            border-left: 4px solid #ef4444 !important;
+          }
+          #print-area div[class*="bg-yellow-50"],
+          #print-area div[class*="bg-yellow-900"] {
+            background-color: #fef9c3 !important;
+            border-left: 4px solid #eab308 !important;
+          }
+          #print-area div[class*="bg-blue-50"],
+          #print-area div[class*="bg-blue-900"] {
+            background-color: #dbeafe !important;
+            border-left: 4px solid #3b82f6 !important;
+          }
+          #print-area div[class*="border-ppa-navy"][class*="bg-ppa"] {
+            background-color: #e0f2fe !important;
+            border-left: 4px solid #0d3a5c !important;
+          }
+          
+          /* Stats card text colors - use attribute selectors */
+          #print-area [class*="text-green-600"],
+          #print-area [class*="text-green-700"],
+          #print-area [class*="text-green-300"],
+          #print-area [class*="text-green-400"] {
+            color: #15803d !important;
+          }
+          #print-area [class*="text-red-600"],
+          #print-area [class*="text-red-700"],
+          #print-area [class*="text-red-300"],
+          #print-area [class*="text-red-400"] {
+            color: #b91c1c !important;
+          }
+          #print-area [class*="text-yellow-600"],
+          #print-area [class*="text-yellow-700"],
+          #print-area [class*="text-yellow-300"],
+          #print-area [class*="text-yellow-400"] {
+            color: #a16207 !important;
+          }
+          #print-area [class*="text-blue-600"],
+          #print-area [class*="text-blue-700"],
+          #print-area [class*="text-blue-300"],
+          #print-area [class*="text-blue-400"] {
+            color: #1d4ed8 !important;
+          }
+          
+          /* All other text should be black */
+          #print-area [class*="text-gray"],
+          #print-area [class*="dark:text-gray"],
+          #print-area [class*="dark:text-white"] {
+            color: #111827 !important;
+          }
+          
+          /* Navy titles */
+          #print-area [class*="text-ppa-navy"],
+          #print-area [class*="text-ppa-light"] {
+            color: #0d3a5c !important;
+          }
+          
+          /* Status badges in table */
+          #print-area span[class*="bg-green-100"] {
+            background-color: #dcfce7 !important;
+            color: #15803d !important;
+          }
+          #print-area span[class*="bg-red-100"] {
+            background-color: #fee2e2 !important;
+            color: #b91c1c !important;
+          }
+          #print-area span[class*="bg-yellow-100"] {
+            background-color: #fef9c3 !important;
+            color: #a16207 !important;
+          }
+          #print-area span[class*="bg-orange-100"] {
+            background-color: #ffedd5 !important;
+            color: #c2410c !important;
+          }
+          
+          /* Table cell borders */
+          #print-area td,
+          #print-area th {
+            border-color: #d1d5db !important;
+          }
+          
+          /* Employee info box */
+          #print-area [class*="bg-gray-50"],
+          #print-area [class*="bg-gray-700"],
+          #print-area [class*="bg-gray-800"] {
+            background-color: #f9fafb !important;
+          }
+          
+          /* Border colors */
+          #print-area [class*="border-gray"],
+          #print-area [class*="border-ppa"] {
+            border-color: #d1d5db !important;
+          }
+          
+          /* Table header border - keep navy bottom */
+          #print-area .border-b-2[class*="border-ppa"] {
+            border-bottom-color: #0d3a5c !important;
+          }
+          
+          .no-print {
+            display: none !important;
+          }
+          
+          .print-break {
+            page-break-before: always;
+          }
+          
+          /* Print-specific stat card overrides - these have highest priority */
+          .print-stat-green {
+            background-color: #dcfce7 !important;
+            border-left: 4px solid #22c55e !important;
+          }
+          .print-stat-green p {
+            color: #15803d !important;
+          }
+          
+          .print-stat-red {
+            background-color: #fee2e2 !important;
+            border-left: 4px solid #ef4444 !important;
+          }
+          .print-stat-red p {
+            color: #b91c1c !important;
+          }
+          
+          .print-stat-yellow {
+            background-color: #fef9c3 !important;
+            border-left: 4px solid #eab308 !important;
+          }
+          .print-stat-yellow p {
+            color: #a16207 !important;
+          }
+          
+          .print-stat-blue {
+            background-color: #dbeafe !important;
+            border-left: 4px solid #3b82f6 !important;
+          }
+          .print-stat-blue p {
+            color: #1d4ed8 !important;
+          }
+          
+          .print-stat-navy {
+            background-color: #e0f2fe !important;
+            border-left: 4px solid #0d3a5c !important;
+          }
+          .print-stat-navy span {
+            color: #0d3a5c !important;
+          }
+          
+          /* Table row overrides */
+          #print-area table tbody tr {
+            background-color: white !important;
+          }
+          #print-area table tbody tr:nth-child(even) {
+            background-color: #f9fafb !important;
+          }
+          #print-area table tbody tr td {
+            color: #111827 !important;
+          }
+          
+          /* Weekend rows - light gray */
+          #print-area table tbody tr.bg-gray-100,
+          #print-area table tbody tr[class*="bg-gray-100"] {
+            background-color: #f3f4f6 !important;
+          }
+          #print-area table tbody tr[class*="bg-gray-100"] td {
+            color: #9ca3af !important;
+          }
+          
+          /* Print row classes with highest specificity */
+          #print-area .print-row-even {
+            background-color: white !important;
+          }
+          #print-area .print-row-even td {
+            color: #111827 !important;
+          }
+          #print-area .print-row-odd {
+            background-color: #f9fafb !important;
+          }
+          #print-area .print-row-odd td {
+            color: #111827 !important;
+          }
+          #print-area .print-row-weekend {
+            background-color: #f3f4f6 !important;
+          }
+          #print-area .print-row-weekend td {
+            color: #9ca3af !important;
+          }
+          
+          /* Status badges in print */
+          #print-area span[class*="bg-green-100"],
+          #print-area span[class*="bg-green-900"] {
+            background-color: #dcfce7 !important;
+            color: #15803d !important;
+          }
+          #print-area span[class*="bg-red-100"],
+          #print-area span[class*="bg-red-900"] {
+            background-color: #fee2e2 !important;
+            color: #b91c1c !important;
+          }
+          #print-area span[class*="bg-yellow-100"],
+          #print-area span[class*="bg-yellow-900"] {
+            background-color: #fef9c3 !important;
+            color: #a16207 !important;
+          }
+          #print-area span[class*="bg-orange-100"],
+          #print-area span[class*="bg-orange-900"] {
+            background-color: #ffedd5 !important;
+            color: #c2410c !important;
+          }
+          
+          /* Arial compact font for fitting on one page */
+          #print-area {
+            font-family: Arial, sans-serif !important;
+            font-size: 8pt !important;
+          }
+          
+          #print-area table {
+            font-family: Arial, sans-serif !important;
+            font-size: 7pt !important;
+            width: 100% !important;
+          }
+          
+          #print-area th, #print-area td {
+            padding: 1px 3px !important;
+            font-size: 7pt !important;
+            line-height: 1.2 !important;
+          }
+          
+          /* Compact header */
+          #print-area .mb-4 {
+            margin-bottom: 4px !important;
+          }
+          #print-area .pb-4 {
+            padding-bottom: 4px !important;
+          }
+          #print-area .mb-6 {
+            margin-bottom: 4px !important;
+          }
+          #print-area .mt-8 {
+            margin-top: 6px !important;
+          }
+          #print-area .pt-6 {
+            padding-top: 4px !important;
+          }
+          #print-area .mt-3 {
+            margin-top: 2px !important;
+          }
+          
+          /* Compact report header text */
+          #print-area h1 {
+            font-size: 12pt !important;
+            margin: 0 !important;
+          }
+          #print-area h2 {
+            font-size: 10pt !important;
+            margin: 2px 0 !important;
+          }
+          #print-area h3 {
+            font-size: 9pt !important;
+            margin-bottom: 3px !important;
+            padding-bottom: 2px !important;
+          }
+          
+          /* Compact logo */
+          #print-area img {
+            width: 50px !important;
+            height: 50px !important;
+          }
+          
+          /* Reduce status badge size */
+          #print-area span[class*="rounded"] {
+            padding: 0 2px !important;
+            font-size: 6pt !important;
+          }
+          
+          /* Compact footer */
+          #print-area .grid-cols-2 {
+            gap: 8px !important;
+          }
+          #print-area .mt-6 {
+            margin-top: 4px !important;
+          }
+          
+          /* Employee info print styles */
+          .employee-info-row {
+            display: flex !important;
+            gap: 30px !important;
+            margin-bottom: 2px !important;
+          }
+          .employee-info-item {
+            display: flex !important;
+            gap: 6px !important;
+          }
+          .employee-info-label {
+            font-weight: normal !important;
+            color: #6b7280 !important;
+            font-size: 8pt !important;
+          }
+          .employee-info-value {
+            font-weight: 600 !important;
+            color: #111827 !important;
+            font-size: 8pt !important;
+          }
+          
+          /* Force single page - prevent page breaks inside content */
+          #print-area table {
+            page-break-inside: avoid !important;
+          }
+          #print-area {
+            page-break-after: avoid !important;
+          }
+        }
+      `}</style>
+
+      <div className="space-y-4">
+        {/* Controls - Hidden when printing */}
+        <div className="no-print">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Monthly Reports</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Generate and print attendance reports</p>
+            </div>
+            <button
+              onClick={handlePrint}
+              disabled={generating}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm bg-ppa-navy text-white rounded-lg hover:bg-ppa-blue transition-colors disabled:opacity-50"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
+              </svg>
+              {generating ? "Preparing..." : "Print Report"}
+            </button>
+          </div>
+
+          {/* Filters */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Select Month
+                </label>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-ppa-navy focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Report Type
+                </label>
+                <select
+                  value={reportType}
+                  onChange={(e) => setReportType(e.target.value as "organization" | "individual")}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-ppa-navy focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="organization">Whole Organization</option>
+                  <option value="individual">Individual Employee</option>
+                </select>
+              </div>
+              {reportType === "organization" && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                    Filter by Department
+                  </label>
+                  <select
+                    value={selectedDepartment}
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-ppa-navy focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  >
+                    <option value="all">All Departments</option>
+                    {departments.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {reportType === "individual" && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                      Filter by Department
+                    </label>
+                    <select
+                      value={individualDepartment}
+                      onChange={(e) => {
+                        setIndividualDepartment(e.target.value);
+                        // Reset selected employee when department changes
+                        const filtered = e.target.value === "all" 
+                          ? employees 
+                          : employees.filter(emp => emp.department === e.target.value);
+                        if (filtered.length > 0) {
+                          setSelectedEmployee(filtered[0].id);
+                        }
+                      }}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-ppa-navy focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    >
+                      <option value="all">All Departments</option>
+                      {departments.map((dept) => (
+                        <option key={dept} value={dept}>
+                          {dept}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                      Select Employee
+                    </label>
+                    <select
+                      value={selectedEmployee}
+                      onChange={(e) => setSelectedEmployee(e.target.value)}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-ppa-navy focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    >
+                      {individualFilteredEmployees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name} {emp.department ? `- ${emp.department}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Printable Report Area */}
+        <div id="print-area" ref={printRef} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+          {/* Report Header */}
+          <div className="mb-4 border-b-2 border-ppa-navy dark:border-ppa-light pb-4">
+            <div className="relative">
+              {/* Logo on far right */}
+              <div className="absolute right-0 top-0">
+                <img
+                  src="/images/download-removebg-preview.png"
+                  alt="PPA Logo"
+                  className="w-20 h-20 object-contain"
+                />
+              </div>
+              {/* Centered content */}
+              <div className="text-center">
+                <h1 className="text-xl font-bold text-ppa-navy dark:text-ppa-light">PHILIPPINE PORTS AUTHORITY</h1>
+                <p className="text-gray-600 dark:text-gray-400 text-xs">Attendance Monitoring System</p>
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mt-3">
+                  Monthly Attendance Sheet
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">For the Month of {monthName}</p>
+              </div>
+            </div>
+          </div>
+
+          {reportType === "organization" ? (
+            // Organization Report
+            <>
+              {/* Employee Summary Table - Grouped by Department */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-ppa-navy dark:text-ppa-light mb-4 border-b border-gray-300 dark:border-gray-600 pb-2">
+                  Employee Attendance Summary
+                  {selectedDepartment === "all" ? " (Grouped by Department)" : ` - ${selectedDepartment}`}
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-300 dark:border-gray-600">
+                    <thead>
+                      <tr className="bg-ppa-navy text-white">
+                        <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left text-sm">Employee Name</th>
+                        {selectedDepartment === "all" && (
+                          <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-left text-sm">Position</th>
+                        )}
+                        <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm">Present</th>
+                        <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm">Late</th>
+                        <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm">Half Day</th>
+                        <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm">Absent</th>
+                        <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm">Total Hours</th>
+                        <th className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm">Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedDepartment === "all" ? (
+                        // Grouped by department view
+                        Object.entries(employeesByDepartment).map(([dept, deptEmployees]) => {
+                          const deptStats = calculateDepartmentStats(deptEmployees);
+                          return (
+                            <React.Fragment key={dept}>
+                              {/* Department Header Row */}
+                              <tr className="bg-ppa-blue/10 dark:bg-ppa-blue/20">
+                                <td colSpan={8} className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm font-bold text-ppa-navy dark:text-ppa-light">
+                                  {dept} ({deptEmployees.length} employee{deptEmployees.length !== 1 ? "s" : ""})
+                                </td>
+                              </tr>
+                              {/* Department Employees */}
+                              {deptEmployees.map((emp, idx) => {
+                                const stats = calculateEmployeeStats(emp.id);
+                                return (
+                                  <tr key={emp.id} className={idx % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-700"}>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm font-medium text-gray-900 dark:text-gray-100 pl-6">{emp.name}</td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300">{emp.position || "N/A"}</td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-green-600 dark:text-green-400 font-medium">{stats.presentDays}</td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-yellow-600 dark:text-yellow-400 font-medium">{stats.lateDays}</td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-orange-600 dark:text-orange-400 font-medium">{stats.halfDays}</td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-red-600 dark:text-red-400 font-medium">{stats.absentDays}</td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-gray-700 dark:text-gray-300">{stats.totalWorkHours}h</td>
+                                    <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm font-bold text-gray-900 dark:text-gray-100">{stats.attendanceRate}%</td>
+                                  </tr>
+                                );
+                              })}
+                              {/* Department Subtotal Row */}
+                              <tr className="bg-gray-100 dark:bg-gray-600 font-semibold">
+                                <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 pl-6 italic">Subtotal</td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300">—</td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-green-700 dark:text-green-400">{deptStats.presentDays}</td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-yellow-700 dark:text-yellow-400">{deptStats.lateDays}</td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-orange-700 dark:text-orange-400">{deptStats.halfDays}</td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-red-700 dark:text-red-400">{deptStats.absentDays}</td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-gray-700 dark:text-gray-300">{deptStats.totalWorkHours}h</td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm font-bold text-gray-900 dark:text-gray-100">{deptStats.attendanceRate}%</td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        })
+                      ) : (
+                        // Filtered single department view
+                        filteredEmployees.map((emp, idx) => {
+                          const stats = calculateEmployeeStats(emp.id);
+                          return (
+                            <tr key={emp.id} className={idx % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-700"}>
+                              <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm font-medium text-gray-900 dark:text-gray-100">{emp.name}</td>
+                              <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-green-600 dark:text-green-400 font-medium">{stats.presentDays}</td>
+                              <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-yellow-600 dark:text-yellow-400 font-medium">{stats.lateDays}</td>
+                              <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-orange-600 dark:text-orange-400 font-medium">{stats.halfDays}</td>
+                              <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-red-600 dark:text-red-400 font-medium">{stats.absentDays}</td>
+                              <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm text-gray-700 dark:text-gray-300">{stats.totalWorkHours}h</td>
+                              <td className="border border-gray-300 dark:border-gray-600 px-3 py-2 text-center text-sm font-bold text-gray-900 dark:text-gray-100">{stats.attendanceRate}%</td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : (
+            // Individual Report
+            <>
+              {(() => {
+                const employee = employees.find(e => e.id === selectedEmployee);
+                const stats = calculateEmployeeStats(selectedEmployee);
+                const monthlyData = getEmployeeMonthlyAttendance(selectedEmployee);
+
+                if (!employee) {
+                  return <p className="text-center text-gray-500 dark:text-gray-400">No employee selected</p>;
+                }
+
+                return (
+                  <>
+                    {/* Employee Info - Clean professional format */}
+                    <div className="mb-6 border-b border-gray-300 dark:border-gray-600 pb-4">
+                      <div className="employee-info-row flex flex-wrap gap-x-10 gap-y-2 text-sm">
+                        <div className="employee-info-item flex gap-2">
+                          <span className="employee-info-label text-gray-500 dark:text-gray-400">Employee Name:</span>
+                          <span className="employee-info-value font-semibold text-gray-900 dark:text-gray-100">{employee.name}</span>
+                        </div>
+                        <div className="employee-info-item flex gap-2">
+                          <span className="employee-info-label text-gray-500 dark:text-gray-400">Email:</span>
+                          <span className="employee-info-value font-semibold text-gray-900 dark:text-gray-100">{employee.email}</span>
+                        </div>
+                      </div>
+                      <div className="employee-info-row flex flex-wrap gap-x-10 gap-y-2 text-sm mt-2">
+                        <div className="employee-info-item flex gap-2">
+                          <span className="employee-info-label text-gray-500 dark:text-gray-400">Department:</span>
+                          <span className="employee-info-value font-semibold text-gray-900 dark:text-gray-100">{employee.department || "N/A"}</span>
+                        </div>
+                        <div className="employee-info-item flex gap-2">
+                          <span className="employee-info-label text-gray-500 dark:text-gray-400">Position:</span>
+                          <span className="employee-info-value font-semibold text-gray-900 dark:text-gray-100">{employee.position || "N/A"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Daily Attendance Table */}
+                    <div>
+                      <h3 className="text-lg font-semibold text-ppa-navy dark:text-ppa-light mb-4 border-b border-gray-300 dark:border-gray-600 pb-2">Daily Attendance Record</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse border border-gray-300 dark:border-gray-600 text-sm">
+                          <thead>
+                            <tr className="bg-ppa-navy text-white">
+                              <th className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left">Date</th>
+                              <th className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-left">Day</th>
+                              <th className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">AM In</th>
+                              <th className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">AM Out</th>
+                              <th className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">PM In</th>
+                              <th className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">PM Out</th>
+                              <th className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">Status</th>
+                              <th className="border border-gray-300 dark:border-gray-600 px-2 py-2 text-center">Hours</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {monthlyData.map((day, idx) => (
+                              <tr 
+                                key={day.dateStr} 
+                                className={
+                                  day.isWeekend 
+                                    ? "print-row-weekend bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500" 
+                                    : idx % 2 === 0 
+                                      ? "print-row-even bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" 
+                                      : "print-row-odd bg-gray-50 dark:bg-gray-750 text-gray-900 dark:text-gray-100"
+                                }
+                              >
+                                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1">
+                                  {format(day.date, "MMM dd, yyyy")}
+                                </td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1">
+                                  {format(day.date, "EEEE")}
+                                </td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-center">
+                                  {day.isWeekend ? "-" : formatTime(day.attendance?.amIn || null)}
+                                </td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-center">
+                                  {day.isWeekend ? "-" : formatTime(day.attendance?.amOut || null)}
+                                </td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-center">
+                                  {day.isWeekend ? "-" : formatTime(day.attendance?.pmIn || null)}
+                                </td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-center">
+                                  {day.isWeekend ? "-" : formatTime(day.attendance?.pmOut || null)}
+                                </td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-center">
+                                  {day.isWeekend ? (
+                                    <span className="text-gray-400 dark:text-gray-500">Weekend</span>
+                                  ) : (
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                      day.attendance?.status === "PRESENT" ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400" :
+                                      day.attendance?.status === "LATE" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400" :
+                                      day.attendance?.status === "HALF_DAY" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400" :
+                                      "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400"
+                                    }`}>
+                                      {day.attendance?.status || "ABSENT"}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="border border-gray-300 dark:border-gray-600 px-2 py-1 text-center">
+                                  {day.isWeekend ? "-" : (day.attendance?.workHours?.toFixed(1) || "0") + "h"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </>
+          )}
+
+          {/* Report Footer */}
+          <div className="mt-8 pt-6 border-t border-gray-300 dark:border-gray-600">
+            <div className="grid grid-cols-2 gap-8">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Generated on: {currentDate}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Report Period: {monthName}</p>
+              </div>
+              <div className="text-right">
+                <div className="mt-8 pt-4 border-t border-gray-400 dark:border-gray-500 inline-block min-w-[200px]">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Authorized Signature</p>
+                </div>
+              </div>
+            </div>
+            <div className="text-center mt-6 text-xs text-gray-400 dark:text-gray-500">
+              <p>Philippine Ports Authority - Attendance Monitoring System</p>
+              <p>This is a computer-generated report.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
