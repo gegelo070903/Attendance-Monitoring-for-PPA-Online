@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "./ThemeProvider";
@@ -37,9 +38,11 @@ export default function Sidebar() {
       <div className="relative flex-shrink-0 p-3 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-100 dark:to-gray-200 border-b border-gray-200 dark:border-gray-300 z-20">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 flex-shrink-0">
-            <img
+            <Image
               src="/images/ppa-logo-nobg.png"
               alt="PPA Logo"
+              width={36}
+              height={36}
               className="w-full h-full object-contain"
             />
           </div>
@@ -144,9 +147,11 @@ export default function Sidebar() {
         <div className="flex items-center gap-2 mb-3">
           <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden bg-gradient-to-br from-ppa-navy to-ppa-blue flex-shrink-0 ring-2 ring-white dark:ring-gray-700 shadow-md">
             {(session?.user as any)?.profileImage ? (
-              <img
+              <Image
                 src={(session?.user as any).profileImage}
                 alt="Profile"
+                width={32}
+                height={32}
                 className="w-full h-full object-cover"
               />
             ) : (
