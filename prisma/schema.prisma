@@ -90,7 +90,11 @@ model ActivityLog {
   @@index([type])
 }
 
+
+
 model FileUpload {
   id        String   @id @default(cuid())
   data      Bytes    // Binary file data stored in PostgreSQL
+  mimeType  String?  // MIME type of the file
+  filename  String?  // Original filename
 }
