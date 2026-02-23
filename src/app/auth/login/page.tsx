@@ -1,5 +1,6 @@
-import Image from "next/image";
+
 "use client";
+import Image from "next/image";
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";

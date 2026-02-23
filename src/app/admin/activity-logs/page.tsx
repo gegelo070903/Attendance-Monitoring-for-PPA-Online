@@ -1,5 +1,6 @@
-import Image from "next/image";
+
 "use client";
+import Image from "next/image";
 
 import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";

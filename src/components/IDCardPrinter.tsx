@@ -1,5 +1,6 @@
-import Image from "next/image";
+
 "use client";
+import Image from "next/image";
 
 import { useRef, useEffect, useState } from "react";
 import QRCode from "qrcode";
