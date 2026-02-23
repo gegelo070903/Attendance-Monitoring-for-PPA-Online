@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/Toast";
+import Image from "next/image";
 
 // SVG Icons as components
 const UserIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
@@ -294,9 +295,11 @@ export default function ProfilePage() {
           <div className="relative group">
             <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-blue-500 shadow-lg bg-gray-100 dark:bg-gray-700">
               {profileImage ? (
-                <img
+                <Image
                   src={profileImage}
                   alt="Profile"
+                  width={128}
+                  height={128}
                   className="w-full h-full object-cover"
                 />
               ) : (

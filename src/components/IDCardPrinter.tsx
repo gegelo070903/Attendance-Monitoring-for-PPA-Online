@@ -53,7 +53,7 @@ export default function IDCardPrinter({
       });
 
       // Load and draw logo in center
-      const logo = new Image();
+      const logo = document.createElement("img");
       logo.crossOrigin = "anonymous";
       logo.onload = () => {
         const logoSize = size * 0.22;

@@ -61,7 +61,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="h-screen h-[100dvh] flex flex-col relative overflow-hidden bg-white">
+    <div className="h-screen flex flex-col relative overflow-hidden bg-white">
       {/* Wavy Watercolor Background */}
       <WatercolorBackground />
       

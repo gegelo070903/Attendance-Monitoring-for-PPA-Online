@@ -378,7 +378,7 @@ export default function ScanStationPage() {
   const activeTiles = selectedShift === "DAY" ? dayShiftTiles : nightShiftTiles;
 
   return (
-    <div className="min-h-screen min-h-[100dvh] p-2 sm:p-3 overflow-x-hidden bg-white">
+    <div className="min-h-[100dvh] p-2 sm:p-3 overflow-x-hidden bg-white">
       {/* Instructions Popup */}
       <InstructionsPopup isOpen={showInstructions} onClose={() => setShowInstructions(false)} />
 

@@ -13,7 +13,7 @@ export default async function Home() {
   }
 
   return (
-    <main className="h-screen h-[100dvh] flex flex-col relative overflow-hidden bg-white">
+    <main className="h-screen flex flex-col relative overflow-hidden bg-white">
       {/* Wavy Watercolor Background */}
       <WatercolorBackground />
 

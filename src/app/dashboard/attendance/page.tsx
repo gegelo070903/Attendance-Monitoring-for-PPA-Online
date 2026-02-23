@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import AttendanceTable from "@/components/AttendanceTable";
 import { Attendance } from "@/types";
@@ -13,7 +13,7 @@ export default function AttendancePage() {
     endDate: format(endOfMonth(new Date()), "yyyy-MM-dd"),
   });
 
-  const fetchAttendance = async () => {
+  const fetchAttendance = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -29,11 +29,11 @@ export default function AttendancePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange.startDate, dateRange.endDate]);
 
   useEffect(() => {
     fetchAttendance();
-  }, [dateRange]);
+  }, [fetchAttendance]);
 
   const setQuickRange = (days: number) => {
     const end = new Date();

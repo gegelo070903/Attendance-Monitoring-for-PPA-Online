@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import AttendanceTable from "@/components/AttendanceTable";
 import { Attendance } from "@/types";
@@ -57,7 +57,7 @@ export default function AdminAttendancePage() {
     }
   };
 
-  const fetchAttendance = async () => {
+  const fetchAttendance = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -79,7 +79,7 @@ export default function AdminAttendancePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange.startDate, dateRange.endDate]);
 
   useEffect(() => {
     fetchEmployees();
@@ -87,7 +87,7 @@ export default function AdminAttendancePage() {
 
   useEffect(() => {
     fetchAttendance();
-  }, [dateRange]);
+  }, [fetchAttendance]);
 
   // Calculate summary stats based on filtered attendances
   const todayStr = format(new Date(), "yyyy-MM-dd");
